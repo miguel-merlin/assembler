@@ -266,7 +266,7 @@ char* encode_instruction(char *instruction) {
 char* binary_to_hex(char* binary) {
     char* hex = (char*) malloc(5 * sizeof(char));
     int value = 0;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 16; i++) {
         value *= 2;
         if (binary[i] == '1') {
             value += 1;
@@ -285,36 +285,11 @@ void convert_instruction_to_hex(char* instruction, FILE *output_file) {
         return;
     }
 
-    char first[5];
-    strncpy(first, instruction, 4);
-    first[4] = '\0';
+    char* hex = binary_to_hex(instruction);
 
-    char second[5];
-    strncpy(second, instruction + 4, 4);
-    second[4] = '\0';
+    fprintf(output_file, "%s\n", hex);
 
-    char third[5];
-    strncpy(third, instruction + 8, 4);
-    third[4] = '\0';
-
-    char fourth[5];
-    strncpy(fourth, instruction + 12, 4);
-    fourth[4] = '\0';
-
-    char* first_half_hex = binary_to_hex(first);
-    char* second_half_hex = binary_to_hex(second);
-    char* third_half_hex = binary_to_hex(third);
-    char* fourth_half_hex = binary_to_hex(fourth);
-
-    fprintf(output_file, "%s\n", first_half_hex);
-    fprintf(output_file, "%s\n", second_half_hex);
-    fprintf(output_file, "%s\n", third_half_hex);
-    fprintf(output_file, "%s\n", fourth_half_hex);
-
-    free(first_half_hex);
-    free(second_half_hex);
-    free(third_half_hex);
-    free(fourth_half_hex);
+    free(hex);
 }
 
 bool handle_text_segment(char *line, FILE *input_file, FILE *output_file) {
