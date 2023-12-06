@@ -111,15 +111,11 @@ bool check_immediate(char* offset) {
         return false;
     }
 
-    if (offset[0] == '#') {
-        offset++;
-    }
-
     trim_space(offset);
 
     // Check if immediate is a number
     for (int i = 0; i < strlen(offset); i++) {
-        if (offset[i] == ' ') {
+        if (offset[i] == ' ' || offset[i] == '\t' || offset[i] == '#') {
             continue;
         }
         if (!isdigit(offset[i])) {
