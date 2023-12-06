@@ -164,6 +164,11 @@ char* create_binary_string(char* line, bool to, bool write_reg, bool immediate_c
     strcat(line, immediate_control ? "1" : "0");
     strcat(line, read_mem ? "1" : "0");
     strcat(line, write_mem ? "1" : "0");
+
+    printf("Opcode: %s\n", line);
+    printf("Rm: %s\n", rm);
+    printf("Rn: %s\n", rn);
+    printf("Rd: %s\n", rd);
     strcat(line, rm);
     strcat(line, rn);
     strcat(line, rd);
