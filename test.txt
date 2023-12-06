@@ -1,0 +1,5 @@
+.text
+    mul r2, R0, 0
+    ldr R2, [R3, r2]
+.data
+    example: .byte "hello"
