@@ -1,2 +1,2 @@
 .text
-    mul r2, R0, 0
+    mul r1, r0, 10

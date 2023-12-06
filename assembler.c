@@ -115,8 +115,13 @@ bool check_immediate(char* offset) {
         offset++;
     }
 
+    trim_space(offset);
+
     // Check if immediate is a number
     for (int i = 0; i < strlen(offset); i++) {
+        if (offset[i] == ' ') {
+            continue;
+        }
         if (!isdigit(offset[i])) {
             return false;
         }
@@ -148,6 +153,7 @@ char* create_binary_string(char* line, bool to, bool write_reg, bool immediate_c
     rn = convert_str_to_binary(rn_char);
 
     if (immediate_control) {
+        printf("In immidate control\n");
         rm = trim_space(rm);
         rm = convert_str_to_binary(rm);
     } else {
@@ -168,6 +174,8 @@ char* create_binary_string(char* line, bool to, bool write_reg, bool immediate_c
 
     // Null terminate string
     line[line_size - 1] = '\0';
+
+    printf("%s\n", line);
 
     return line;
 }
