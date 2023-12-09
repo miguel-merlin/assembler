@@ -1,0 +1,8 @@
+.text
+    adr x1, label
+    ldr x0, [x1, 0]
+    add x0, x0, 10
+    str x0, [x1, 0]
+
+.data
+    test: .quad 10

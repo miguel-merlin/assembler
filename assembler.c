@@ -9,10 +9,22 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-char *valid_mnemonics[] = {"add", "mul", "ldr", "str"};
+/*
+
+To compile:
+gcc -o assembler assembler.c
+To run:
+./assembler <filenames>
+Example:
+./assembler test.txt
+
+*/
+
+char *valid_mnemonics[] = {"add", "mul", "ldr", "str", "mov", "adr"};
 char *valid_directives[] = {".byte", ".int", ".word", ".quad", ".dword", ".single", ".float", ".double", ".string", ".ascii"};
 int directive_sizes[] = {1, 4, 2, 8, 4, 4, 4, 8, 1, 1};
 int line_size = 17;
+char *current_address = "0000";
 
 bool validate_files(int argc, char *argv[]) {
     if (argc == 1) {
@@ -56,7 +68,7 @@ bool validate_mnemonic(char *mnemonic) {
 
     // Check if mnemonic is valid
     bool valid = false;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 6; i++) {
         if (strcmp(mnemonic, valid_mnemonics[i]) == 0) {
             valid = true;
             break;
@@ -99,7 +111,7 @@ bool validate_register(char *reg) {
     }
 
     // Check if register is r0-r3
-    if (strlen(reg) == 2 && (reg[0] == 'r' || reg[0] == 'R') && reg[1] >= '0' && reg[1] <= '3') {
+    if (strlen(reg) == 2 && (reg[0] == 'x' || reg[0] == 'X') && reg[1] >= '0' && reg[1] <= '3') {
         return true;
     }
 
@@ -149,7 +161,6 @@ char* create_binary_string(char* line, bool to, bool write_reg, bool immediate_c
     rn = convert_str_to_binary(rn_char);
 
     if (immediate_control) {
-        printf("In immidate control\n");
         rm = trim_space(rm);
         rm = convert_str_to_binary(rm);
     } else {
@@ -165,10 +176,6 @@ char* create_binary_string(char* line, bool to, bool write_reg, bool immediate_c
     strcat(line, read_mem ? "1" : "0");
     strcat(line, write_mem ? "1" : "0");
 
-    printf("Opcode: %s\n", line);
-    printf("Rm: %s\n", rm);
-    printf("Rn: %s\n", rn);
-    printf("Rd: %s\n", rd);
     strcat(line, rm);
     strcat(line, rn);
     strcat(line, rd);
@@ -176,12 +183,10 @@ char* create_binary_string(char* line, bool to, bool write_reg, bool immediate_c
     // Null terminate string
     line[line_size - 1] = '\0';
 
-    printf("%s\n", line);
-
     return line;
 }
 
-char* encode_instruction(char *instruction) {
+char* encode_instruction(char *instruction, char **label_names, int *label_size) {
     bool to;
     bool write_reg;
     bool immediate_control;
@@ -233,17 +238,44 @@ char* encode_instruction(char *instruction) {
         rm = offset;
 
     } else {
-        rn = strtok(NULL, ",");
-        if (!validate_register(rn)) {
-            printf("Error: %s is not a valid register\n", rn);
-            return NULL;
-        }
+        if (strcmp(mnemonic, "mov") == 0) {
+            rn = rd;
+        } else if (strpcmp(mnemonic, "adr") == 0) {
+            // Check if label is in label_names
+            char* label = strtok(NULL, ",");
+            trim_space(label);
+            int index = -1;
+            for (int i = 0; i < 20; i++) {
+                if (strcmp(label, label_names[i]) == 0) {
+                    index = i;
+                    break;
+                }
+            }
+            if (index == -1) {
+                printf("Error: %s is not a valid label\n", label);
+                return NULL;
+            }
+            char* initial_address = "0000";
 
+            // Update initial address with size until i
+            for (int i = 0; i < index; i++) {
+                int size = label_size[i];
+                int value = strtol(initial_address, NULL, 16); // Convert the initial address from hex to int
+                value += size;
+                sprintf(initial_address, "%04x", value); // Convert the updated value back to hex
+            }
+            rn = initial_address;
+        } else {
+            rn = strtok(NULL, ",");
+            if (!validate_register(rn)) {
+                printf("Error: %s is not a valid register\n", rn);
+                return NULL;
+            }
+        }
         rm = strtok(NULL, "");
         trim_space(rm);
         immediate_control = check_immediate(rm);
     }
-
     if (strcmp(mnemonic, "str") == 0) {
         write_mem = 1;
         write_reg = 0;
@@ -301,15 +333,19 @@ void convert_instruction_to_hex(char* instruction, FILE *output_file) {
     free(hex);
 }
 
-bool handle_text_segment(char *line, FILE *input_file, FILE *output_file) {
+bool handle_text_segment(char *line, FILE *input_file, FILE *output_file, char **label_names, int *label_size) {
     while (fgets(line, 256, input_file) != NULL) {
         char* pos;
         if ((pos=strchr(line, '\n')) != NULL) *pos = '\0';
 
+        if (strcmp(line, "\n") == 0 || strcmp(line, "") == 0) {
+            continue;
+        }
+
         if (strcmp(line, ".data") == 0) {
             break;
         }
-        char* encoded_instruction = encode_instruction(line);
+        char* encoded_instruction = encode_instruction(line, label_names, label_size);
         if (encoded_instruction == NULL) {
             return false;
         }
@@ -356,35 +392,47 @@ bool convert_data_to_hex(char* data, int size, FILE *output_file) {
     return true;
 }
 
-bool convert_data(char* line, int size_data, FILE *output_file) {
-    int size = directive_sizes[size_data];
+bool convert_data(char* line, int size_data, FILE *output_file, int *label_size, int label_count) {
+    int size = 0;
     while (strtok(NULL, ",") != NULL) {
+        size += directive_sizes[size_data];
         if (!convert_data_to_hex(line, size, output_file)) {
             return false;
         }
     }
+
+    // Update label_size
+    label_size[label_count] = size;
+
+    // Update current_address
+    int value = strtol(current_address, NULL, 16); // Convert the initial address from hex to int
+    value += size;
+    sprintf(current_address, "%04x", value); // Convert the updated value back to hex
+
     return true;
 } 
 
-bool encode_data(char* data, FILE *output_file) {
+bool encode_data(char* data, FILE *output_file, char **label_names, int *label_size, int label_count) {
     if (data == NULL) {
         return false;
     }
     trim_space(data);
-    strtok(data, " ");
+    char* label = strtok(data, " ");
     char* directive = strtok(NULL, " ");
-    int size = get_directive_size(directive);
+    int size = get_directive_size(directive); // i in directive_sizes
     if (size == -1) {
         printf("Error: %s is not a valid directive\n", directive);
         return false;
     }
-    if (!convert_data(data, size, output_file)) {
+    if (!convert_data(data, size, output_file, label_size, label_count)) {
         return false;
     }
+    label_names[label_count] = label;
     return true;
 }
 
-bool handle_data_segment(char *line, FILE *input_file, FILE *output_file) {
+bool handle_data_segment(char *line, FILE *input_file, FILE *output_file, char **label_names, int *label_size) {
+    int label_count = 0;
     while (fgets(line, 256, input_file) != NULL) {
         char* pos;
         if ((pos=strchr(line, '\n')) != NULL) *pos = '\0';
@@ -393,14 +441,15 @@ bool handle_data_segment(char *line, FILE *input_file, FILE *output_file) {
             printf("Error: .text segment must come before .data segment\n");
             return false;
         }
-        if (!encode_data(line, output_file)) {
+        if (!encode_data(line, output_file, label_names, label_size, label_count)) {
             return false;
         }
+        label_count++;
     }
     return true;
 }
 
-char* encode(char *filename, FILE *output_file) {
+char* encode(char *filename, FILE *output_file, FILE *data_file, char **label_names, int *label_size) {
     FILE *fp = open_file(filename);
 
     // Check if file was opened successfully
@@ -415,12 +464,12 @@ char* encode(char *filename, FILE *output_file) {
         if ((pos=strchr(line, '\n')) != NULL) *pos = '\0';
 
         if (strncmp(line, ".text", 5) == 0) {
-            if (!handle_text_segment(line, fp, output_file)) {
+            if (!handle_text_segment(line, fp, output_file, label_names, label_size)) {
                 return NULL;
             }
         }
         if (strcmp(line, ".data") == 0) {
-            if (!handle_data_segment(line, fp, output_file)) {
+            if (!handle_data_segment(line, fp, data_file, label_names, label_size)) {
                 return NULL;
             }
         }
@@ -436,20 +485,40 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Create txt file
-    FILE *output_file = fopen("output.txt", "w");
+    // Create instructions.txt file
+    FILE *output_file = fopen("instructions.txt", "w");
     if (output_file == NULL) {
-        printf("Error: output.txt could not be created\n");
+        printf("Error: instructions.txt could not be created\n");
+        return 1;
+    }
+
+    // Create data.txt file
+    FILE *data_file = fopen("data.txt", "w");
+    if (data_file == NULL) {
+        printf("Error: data.txt could not be created\n");
         return 1;
     }
 
     // Write header in file
     fprintf(output_file, "v2.0 raw\n");
 
+    // Write header in data file
+    fprintf(data_file, "v2.0 raw\n");
+
+    char **label_names = malloc(20 * sizeof(char *));
+    for (int i = 0; i < 20; i++) {
+        label_names[i] = malloc(20 * sizeof(char));
+    }
+
+    int *label_size = malloc(20 * sizeof(int));
+    for (int i = 0; i < 20; i++) {
+        label_size[i] = 0;
+    }
+
     // Encode each file
     for (int i = 1; i < argc; i++) {
         char *filename = argv[i];
-        char *encoded_filename = encode(filename, output_file);
+        char *encoded_filename = encode(filename, output_file, data_file, label_names, label_size);
         
         if (encoded_filename == NULL) {
             return 1;
@@ -458,7 +527,9 @@ int main(int argc, char *argv[]) {
 
     fclose(output_file);
 
-    printf("Success! Encoded instructions can be found in output.txt\n");
+    printf("Success!\n");
+    printf("You can find the image with enconded instructions in instructions.txt\n");
+    printf("You can find the image with enconded data in data.txt\n");
     
     return 0;
 }
