@@ -1,24 +1,8 @@
-/*
-    name: Miguel Merlin, Alice Agnoletto
-    pledge: "I pledge my honor that I have abided by the Stevens Honor System."
-*/
-
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
-
-/*
-
-To compile:
-gcc -o assembler assembler.c
-To run:
-./assembler <filenames>
-Example:
-./assembler test.txt
-
-*/
 
 char *valid_mnemonics[] = {"add", "mul", "ldr", "str", "mov", "adr"};
 char *valid_directives[] = {".byte", ".int", ".word", ".quad", ".dword", ".single", ".float", ".double", ".string", ".ascii"};
