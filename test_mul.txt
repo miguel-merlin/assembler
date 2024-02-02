@@ -1,5 +1,0 @@
-.text
-    mov x0, #8
-    mov x1, #10
-    mul x2, x0, x1
-    mul x3, x2, #5
